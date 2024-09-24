@@ -2,7 +2,7 @@
 
 ## Overview
 
-**EasyPy AI** is a Python application that generates paragraphs based on user-defined topics. By using the Datamuse API, it fetches related words and constructs meaningful(sometimes) sentences, allowing for creative text generation on various subjects.
+**EssayPy AI** is a Python application that generates paragraphs based on user-defined topics. By using the Datamuse API, it fetches related words and constructs meaningful(sometimes) sentences, allowing for creative text generation on various subjects.
 
 ## Features
 
