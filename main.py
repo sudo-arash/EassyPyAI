@@ -107,7 +107,7 @@ def generate_paragraphs(topics, num_paragraphs=5):
 def main():
     print("""
         dGGGGMMb     ,"""""""""""""".
-       @p~qp~~qMb    |  EassyPy AI  |
+       @p~qp~~qMb    |  EssayPy AI  |
        M|@||@) M|   _;..............'
        @,----.JM| -'
       JS^\__/  qKL
