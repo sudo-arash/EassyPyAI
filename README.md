@@ -1,4 +1,4 @@
-# README for EasyPy AI
+# README for EssayPy AI
 
 ## Overview
 
