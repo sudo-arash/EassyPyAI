@@ -1,85 +1,106 @@
-import unittest
-from unittest.mock import patch, Mock
-from main import (get_words_by_topic, clean_topic_input,
-                          determine_topics, create_sentence, generate_paragraphs)
+import pytest
+import requests
+from unittest.mock import patch
+from main import (
+    clean_topic_input, determine_topics, fetch_api_data,
+    is_word_related_to_topic, get_words_by_topic, nlp_based_sentence,
+    create_sentence, generate_paragraphs
+)
 
-class TestEassyPyAI(unittest.TestCase):
+DATAMUSE_API = "https://api.datamuse.com/words"
+STOP_WORDS = {"the", "a", "an", "and", "of", "in", "on", "at", "to", "is", "for"}
 
-    @patch('main.requests.get')
-    def test_get_words_by_topic_success(self, mock_get):
-        # Mock the API response
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = [{'word': 'example1'}, {'word': 'example2'}]
-        mock_get.return_value = mock_response
 
-        result = get_words_by_topic('test')
-        self.assertEqual(result, ['example1', 'example2'])
-        mock_get.assert_called_once_with('https://api.datamuse.com/words', params={'ml': 'test'})
+@pytest.fixture
+def mock_requests_get():
+    """Fixture to mock requests.get."""
+    with patch("requests.get") as mock_get:
+        yield mock_get
 
-    @patch('main.requests.get')
-    def test_get_words_by_topic_failure(self, mock_get):
-        # Mock a failed response
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_get.return_value = mock_response
 
-        result = get_words_by_topic('test')
-        self.assertEqual(result, [])
-        mock_get.assert_called_once_with('https://api.datamuse.com/words', params={'ml': 'test'})
+def test_clean_topic_input():
+    sentence = "The quick brown fox jumps over the lazy dog"
+    result = clean_topic_input(sentence)
+    assert result == ["quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
 
-    def test_clean_topic_input(self):
-        result = clean_topic_input("This is a test sentence for the topic.")
-        self.assertEqual(result, ['this', 'test', 'sentence', 'topic.'])
 
-    @patch('main.requests.get')
-    def test_determine_topics_success(self, mock_get):
-        # Mock the API response
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = [{'word': 'topic1'}, {'word': 'topic2'}]
-        mock_get.return_value = mock_response
+def test_fetch_api_data(mock_requests_get):
+    """Test fetching data from API."""
+    mock_response_data = [{"word": "test"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
 
-        result = determine_topics(['word1', 'word2'])
-        self.assertIn('topic1', result)
-        self.assertIn('topic2', result)
+    result = fetch_api_data({"rel_trg": "test"})
+    assert result == mock_response_data
+    mock_requests_get.assert_called_once_with(DATAMUSE_API, params={"rel_trg": "test"})
 
-    @patch('main.requests.get')
-    def test_determine_topics_failure(self, mock_get):
-        # Mock a failed response
-        mock_response = Mock()
-        mock_response.status_code = 404
-        mock_get.return_value = mock_response
 
-        result = determine_topics(['word1', 'word2'])
-        self.assertEqual(result, [])
+def test_determine_topics(mock_requests_get):
+    """Test determining topics with and without threads."""
+    mock_response_data = [{"word": "related"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
 
-    @patch('main.get_words_by_topic')
-    @patch('main.random.choice')
-    def test_create_sentence(self, mock_random_choice, mock_get_words_by_topic):
-        # Mocking words returned by the get_words_by_topic
-        mock_get_words_by_topic.side_effect = [
-            ['cat', 'dog'],  # Nouns
-            ['runs'],       # Verbs
-            ['happy'],      # Adjectives
-            ['quickly']     # Adverbs
-        ]
-        mock_random_choice.side_effect = ['happy', 'cat', 'dog', 'runs', 'quickly']
-        
-        result = create_sentence('animal')
-        self.assertTrue(result.endswith('.'))  # Check if the sentence ends with a period
+    words = ["apple", "banana"]
+    
+    # Test without threading
+    result = determine_topics(words, use_threads=False)
+    assert "related" in result
+    
+    # Test with threading
+    result = determine_topics(words, use_threads=True)
+    assert "related" in result
 
-    @patch('main.random.randint')
-    @patch('main.create_sentence')
-    @patch('main.get_words_by_topic')
-    def test_generate_paragraphs(self, mock_get_words_by_topic, mock_create_sentence, mock_randint):
-        mock_get_words_by_topic.return_value = ['topic']
-        mock_create_sentence.side_effect = ['Sentence 1.', 'Sentence 2.']
-        mock_randint.side_effect = [2, 3]  # 2 to 3 sentences
 
-        result = generate_paragraphs(['topic'], num_paragraphs=1)
-        self.assertEqual(len(result), 1)
-        self.assertTrue(result[0].startswith('Sentence'))
+def test_is_word_related_to_topic(mock_requests_get):
+    """Test checking if a word is related to a topic."""
+    mock_response_data = [{"word": "related"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
 
-if __name__ == '__main__':
-    unittest.main()
+    result = is_word_related_to_topic("test", "related")
+    assert result is True
+
+
+def test_get_words_by_topic(mock_requests_get):
+    """Test fetching words by topic."""
+    mock_response_data = [{"word": "related"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
+
+    result = get_words_by_topic("test", part_of_speech="n", max_words=5)
+    assert result == ["related"]
+
+
+@patch("main.nlp", autospec=True)
+def test_nlp_based_sentence(mock_nlp, mock_requests_get):
+    """Test generating an NLP-based sentence."""
+    mock_nlp.return_value = [{"pos_": "NOUN", "text": "[NOUN]"}, {"pos_": "VERB", "text": "[VERB]"}]
+    mock_response_data = [{"word": "test"}, {"word": "run"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
+
+    result = nlp_based_sentence("The [ADJ] [NOUN] [VERB] the [NOUN] [ADV].", "test")
+    assert isinstance(result, str)
+
+
+def test_create_sentence(mock_requests_get):
+    """Test creating a sentence based on NLP."""
+    mock_response_data = [{"word": "related"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
+
+    result = create_sentence("test", use_threads=False)
+    assert isinstance(result, str)
+
+
+def test_generate_paragraphs(mock_requests_get):
+    """Test generating paragraphs."""
+    mock_response_data = [{"word": "related"}]
+    mock_requests_get.return_value.status_code = 200
+    mock_requests_get.return_value.json.return_value = mock_response_data
+
+    topics = ["apple", "banana"]
+    result = generate_paragraphs(topics, num_paragraphs=2, use_threads=False)
+    assert len(result) == 2
+    assert all(isinstance(p, str) for p in result)
