@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import nltk
 
 # Load the NLP model
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_lg")
 nltk.download("punkt")
 
 # Configure logging
@@ -68,6 +68,27 @@ def is_word_related_to_topic(word, topic):
         return word in related_words
     return False
 
+def get_words_by_topic(topic_word, part_of_speech=None, max_words=10, use_threads=False):
+    """Fetch a limited number of words related to a given topic word using Datamuse API, optionally filtered by part of speech."""
+    logging.info(f"Fetching related {part_of_speech or 'words'} for topic: {topic_word}")
+
+    params = {"ml": topic_word, "max": max_words}
+    if part_of_speech:
+        params["sp"] = f"*{part_of_speech}"
+
+    if use_threads:
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(fetch_api_data, params)
+            return [item['word'] for item in future.result() if 'word' in item]
+
+    # Sequential fetch (default)
+    response = requests.get(DATAMUSE_API, params=params)
+    if response.status_code == 200:
+        return [item['word'] for item in response.json() if 'word' in item]
+    else:
+        logging.error(f"Failed to fetch related words for {topic_word}. Status code: {response.status_code}")
+        return []
+
 def nlp_based_sentence(template_sentence, topic):
     """
     Improve sentence structure using NLP.
@@ -96,7 +117,7 @@ def nlp_based_sentence(template_sentence, topic):
     # Construct the sentence by replacing each part of speech
     generated_sentence = []
     for token in doc:
-        if token.pos_ in pos_map and pos_map[token.pos_]:
+        if token.pos_ in pos_map and pos_map[token.pos_] and pos_map[token.pos_]:
             generated_sentence.append(pos_map[token.pos_].pop(0))  # Sequential selection
         else:
             generated_sentence.append(token.text)  # Keep the original if no word is available
